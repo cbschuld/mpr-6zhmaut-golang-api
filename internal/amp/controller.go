@@ -2,7 +2,6 @@ package amp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"sync/atomic"
@@ -69,6 +68,10 @@ func (c *Controller) TriggerRecovery(ctx context.Context, reason string) {
 	c.lastRecoveryWhy.Store(reason)
 	start := time.Now()
 
+	// Stop the command queue so its goroutines don't compete with the probe
+	// for serial port reads
+	c.queue.Stop()
+
 	if err := c.state.Transition(Probing, "recovery initiated"); err != nil {
 		c.logger.Error("failed to transition to probing", "error", err)
 		return
@@ -77,8 +80,13 @@ func (c *Controller) TriggerRecovery(ctx context.Context, reason string) {
 	go func() {
 		if err := c.connect(ctx); err != nil {
 			c.logger.Error("recovery failed", "error", err)
+			// Restart the queue even on failure so future attempts work
+			c.queue.Start(ctx)
 			return
 		}
+		// Restart the queue now that we're connected
+		c.queue.Start(ctx)
+		c.consecutiveErrors.Store(0)
 		elapsed := time.Since(start)
 		c.lastRecovery.Store(time.Now())
 		c.lastRecoveryMs.Store(elapsed.Milliseconds())
@@ -96,7 +104,7 @@ func (c *Controller) RecordCommandSuccess() {
 // and triggers recovery if threshold is reached.
 func (c *Controller) RecordCommandError(ctx context.Context, err error) {
 	count := c.consecutiveErrors.Add(1)
-	if count >= 2 || errors.Is(err, serial.ErrTimeout) {
+	if count >= 3 {
 		c.TriggerRecovery(ctx, fmt.Sprintf("consecutive errors: %d, last: %v", count, err))
 	}
 }

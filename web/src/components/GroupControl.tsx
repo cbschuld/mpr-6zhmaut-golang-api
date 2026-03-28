@@ -13,6 +13,20 @@ interface Props {
   onSetAttribute: (zoneId: string, attr: string, value: string) => void;
 }
 
+// Send commands sequentially with a delay so we don't flood the serial queue
+async function setAllSequential(
+  zones: Zone[],
+  attr: string,
+  value: string,
+  onSetAttribute: (zoneId: string, attr: string, value: string) => void
+) {
+  for (const z of zones) {
+    onSetAttribute(z.zone, attr, value);
+    // Small delay between commands to let the serial queue breathe
+    await new Promise((r) => setTimeout(r, 150));
+  }
+}
+
 export function GroupControl({ title, zones, zoneLabels, sources, onSetAttribute }: Props) {
   const poweredOn = zones.filter((z) => z.pr === "01");
   const anyOn = poweredOn.length > 0;
@@ -23,7 +37,7 @@ export function GroupControl({ title, zones, zoneLabels, sources, onSetAttribute
 
   const setAll = useCallback(
     (attr: string, value: string) => {
-      zones.forEach((z) => onSetAttribute(z.zone, attr, value));
+      setAllSequential(zones, attr, value, onSetAttribute);
     },
     [zones, onSetAttribute]
   );
