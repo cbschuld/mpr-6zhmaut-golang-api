@@ -91,6 +91,16 @@ export function ZoneCard({ zone, label, sources, onSetAttribute }: Props) {
             max={20}
             onChange={(v) => debouncedSet("bl", String(v).padStart(2, "0"))}
           />
+          <button
+            onClick={() => {
+              onSetAttribute(zone.zone, "tr", "07");
+              onSetAttribute(zone.zone, "bs", "07");
+              onSetAttribute(zone.zone, "bl", "10");
+            }}
+            className="w-full text-xs py-1.5 rounded border border-gray-600 text-gray-400 hover:text-white hover:border-gray-400 transition-colors mt-1"
+          >
+            Reset EQ
+          </button>
         </div>
       )}
     </div>
