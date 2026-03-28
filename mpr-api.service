@@ -1,0 +1,29 @@
+[Unit]
+Description=MPR-6ZHMAUT Multi-Zone Amplifier API
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/mpr-api
+Restart=always
+RestartSec=5
+Environment=DEVICE=/dev/ttyUSB0
+Environment=TARGET_BAUDRATE=115200
+Environment=PORT=8181
+Environment=AMPCOUNT=2
+Environment=POLL_INTERVAL=5s
+Environment=HEALTH_INTERVAL=30s
+Environment=CMD_TIMEOUT=2s
+Environment=LOG_LEVEL=info
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+# Allow access to serial device
+SupplementaryGroups=dialout
+
+[Install]
+WantedBy=multi-user.target
