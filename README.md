@@ -155,25 +155,61 @@ The included `mpr-api.service` file configures `Restart=always` with systemd har
 
 During recovery, all API endpoints return `503 Service Unavailable`. The `/health` endpoint always responds, showing the current state.
 
+## Project Structure
+
+```
+mpr-6zhmaut-golang-api/
+  cmd/mpr-api/
+    main.go                  # Entry point, wiring, embeds web UI
+  internal/
+    config/config.go         # Environment variable parsing
+    model/zone.go            # Zone data type (shared across packages)
+    serial/
+      protocol.go            # MPR protocol: commands, response parsing
+      port.go                # Serial port wrapper with baud rate management
+      queue.go               # FIFO command queue with timeouts
+    amp/
+      state.go               # Connection state machine
+      controller.go          # Baud probing, step-up, recovery, zone ops
+      cache.go               # Thread-safe zone cache with change detection
+      poller.go              # Background zone polling
+      health.go              # Connection liveness monitor
+      events.go              # Ring buffer of system events
+    api/server.go            # REST API + embedded SPA serving
+  web/                       # Vite + React 19 + TypeScript frontend
+    src/                     # React source (components, hooks, API client)
+    dist/                    # Built output (embedded into Go binary)
+  docs/
+    raspberry-pi-setup.md    # Pi hardware and OS setup guide
+    development.md           # Developer workflow and deployment guide
+  Makefile                   # Build, test, deploy targets
+  mpr-api.service            # systemd unit file
+```
+
 ## Architecture
 
 ```
-HTTP clients ──→ REST API ──→ Zone Cache (serves GET instantly)
-                    │              ↑
-                    ▼              │ updates
-                Controller ───────┘
-                    │
-        ┌───────┬──┴──┬──────────┐
-        │       │     │          │
-    State    Command  Health   Background
-    Machine  Queue    Monitor  Poller
-        │       │     │          │
-        └───────┴─────┴──────────┘
-                    │
-                Serial Port
-                    │
-              Amp 1 ── Amp 2
+Browser / iOS ──→ REST API ──→ Zone Cache (serves GET instantly)
+                     │              ↑
+                     ▼              │ updates
+                 Controller ───────┘
+                     │
+         ┌───────┬──┴──┬──────────┐
+         │       │     │          │
+     State    Command  Health   Background
+     Machine  Queue    Monitor  Poller
+         │       │     │          │
+         └───────┴─────┴──────────┘
+                     │
+                 Serial Port
+                     │
+               Amp 1 ── Amp 2
 ```
+
+## Documentation
+
+- **[Raspberry Pi Setup](docs/raspberry-pi-setup.md)** -- hardware, OS flashing, first boot, serial adapter
+- **[Development Guide](docs/development.md)** -- local dev, building, deploying updates to the Pi
 
 ## License
 

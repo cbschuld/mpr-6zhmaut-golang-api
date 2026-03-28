@@ -100,6 +100,8 @@ type ZoneChange struct {
 
 func diffZone(old, new model.Zone) []ZoneChange {
 	var changes []ZoneChange
+	// Excludes "ls" (keypad status) -- it toggles constantly as keypads
+	// heartbeat with the amp and generates noise in the logs.
 	attrs := []struct {
 		name   string
 		oldVal string
@@ -114,7 +116,6 @@ func diffZone(old, new model.Zone) []ZoneChange {
 		{"bs", old.Bass, new.Bass},
 		{"bl", old.Balance, new.Balance},
 		{"ch", old.Channel, new.Channel},
-		{"ls", old.Keypad, new.Keypad},
 	}
 	for _, a := range attrs {
 		if a.oldVal != a.newVal {
