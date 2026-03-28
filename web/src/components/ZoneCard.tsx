@@ -34,21 +34,7 @@ export function ZoneCard({ zone, label, sources, onSetAttribute }: Props) {
       <div className="p-4">
         {/* Top row: label + power */}
         <div className="flex items-center justify-between mb-3">
-          <button
-            onClick={() => isOn && setExpanded(!expanded)}
-            className="text-sm font-medium text-white flex items-center gap-1"
-          >
-            {label}
-            {isOn && (
-              <svg
-                className={`w-3.5 h-3.5 text-gray-500 transition-transform ${expanded ? "rotate-180" : ""}`}
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
-              </svg>
-            )}
-          </button>
+          <span className="text-sm font-medium text-white">{label}</span>
           <PowerToggle
             on={isOn}
             onChange={(on) => onSetAttribute(zone.zone, "pr", on ? "01" : "00")}
@@ -62,13 +48,25 @@ export function ZoneCard({ zone, label, sources, onSetAttribute }: Props) {
               value={parseInt(zone.vo)}
               onChange={(v) => debouncedSet("vo", String(v).padStart(2, "0"))}
             />
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400">Source</span>
-              <SourceSelector
-                value={zone.ch}
-                sources={sources}
-                onChange={(ch) => onSetAttribute(zone.zone, "ch", ch)}
-              />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">Source</span>
+                <SourceSelector
+                  value={zone.ch}
+                  sources={sources}
+                  onChange={(ch) => onSetAttribute(zone.zone, "ch", ch)}
+                />
+              </div>
+              <button
+                onClick={() => setExpanded(!expanded)}
+                className={`text-xs px-2 py-1 rounded transition-colors ${
+                  expanded
+                    ? "bg-primary/20 text-primary"
+                    : "text-gray-400 hover:text-gray-200"
+                }`}
+              >
+                EQ {expanded ? "▲" : "▼"}
+              </button>
             </div>
           </div>
         )}
