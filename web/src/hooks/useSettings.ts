@@ -21,7 +21,7 @@ const DEFAULT_SETTINGS: ZoneSettings = {
   sources: [
     { ch: "01", name: "Source 1" },
     { ch: "02", name: "Source 2" },
-    { ch: "03", name: "Source 3" },
+    { ch: "03", name: "moOde" },
     { ch: "04", name: "Source 4" },
     { ch: "05", name: "Source 5" },
     { ch: "06", name: "Source 6" },
