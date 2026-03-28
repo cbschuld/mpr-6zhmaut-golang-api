@@ -9,12 +9,15 @@ Restart=always
 RestartSec=5
 Environment=DEVICE=/dev/ttyUSB0
 Environment=TARGET_BAUDRATE=115200
-Environment=PORT=8181
+Environment=PORT=80
 Environment=AMPCOUNT=2
 Environment=POLL_INTERVAL=5s
 Environment=HEALTH_INTERVAL=30s
 Environment=CMD_TIMEOUT=2s
 Environment=LOG_LEVEL=info
+
+# Allow binding to port 80 without root
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 
 # Hardening
 NoNewPrivileges=true
