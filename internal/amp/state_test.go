@@ -22,7 +22,7 @@ func TestValidTransitions(t *testing.T) {
 		{Disconnected, Ready, false},
 		{Probing, Negotiating, true},
 		{Probing, Disconnected, true},
-		{Probing, Ready, false},
+		{Probing, Ready, true},
 		{Negotiating, Ready, true},
 		{Negotiating, Probing, true},
 		{Negotiating, Disconnected, false},

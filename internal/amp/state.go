@@ -128,7 +128,7 @@ func validTransition(from, to State) bool {
 	case Disconnected:
 		return to == Probing
 	case Probing:
-		return to == Negotiating || to == Disconnected
+		return to == Negotiating || to == Ready || to == Disconnected
 	case Negotiating:
 		return to == Ready || to == Probing
 	case Ready:
