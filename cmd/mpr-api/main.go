@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"embed"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -15,6 +17,9 @@ import (
 	"github.com/cbschuld/mpr-6zhmaut-golang-api/internal/config"
 	"github.com/cbschuld/mpr-6zhmaut-golang-api/internal/serial"
 )
+
+//go:embed all:dist
+var webEmbed embed.FS
 
 func main() {
 	cfg, err := config.Load()
@@ -78,8 +83,15 @@ func main() {
 	healthMonitor := amp.NewHealthMonitor(controller, queue, state, cfg.HealthInterval, cfg.CmdTimeout, logger)
 	healthMonitor.Start(ctx)
 
+	// Prepare embedded web UI filesystem (strip "web" prefix so files are at root)
+	webFS, err := fs.Sub(webEmbed, "dist")
+	if err != nil {
+		logger.Error("failed to load embedded web UI", "error", err)
+		os.Exit(1)
+	}
+
 	// Create and start HTTP server
-	server := api.NewServer(cfg, controller, cache, state, queue, events, healthMonitor, port, logger)
+	server := api.NewServer(cfg, controller, cache, state, queue, events, healthMonitor, port, logger, webFS)
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),
 		Handler:      server.Handler(),

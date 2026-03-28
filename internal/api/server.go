@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -29,6 +30,7 @@ type Server struct {
 	logger     *slog.Logger
 	startTime  time.Time
 	mux        *http.ServeMux
+	webFS      fs.FS // embedded web UI assets
 }
 
 // NewServer creates a new API server.
@@ -42,6 +44,7 @@ func NewServer(
 	health *amp.HealthMonitor,
 	port *serial.Port,
 	logger *slog.Logger,
+	webFS fs.FS,
 ) *Server {
 	s := &Server{
 		cfg:        cfg,
@@ -55,6 +58,7 @@ func NewServer(
 		logger:     logger,
 		startTime:  time.Now(),
 		mux:        http.NewServeMux(),
+		webFS:      webFS,
 	}
 	s.routes()
 	return s
@@ -71,12 +75,56 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) routes() {
+	// API routes (matched first due to specificity)
+	s.mux.HandleFunc("GET /api/zones", s.handleGetZones)
+	s.mux.HandleFunc("GET /api/zones/{zone}", s.handleGetZone)
+	s.mux.HandleFunc("GET /api/zones/{zone}/{attribute}", s.handleGetZoneAttribute)
+	s.mux.HandleFunc("POST /api/zones/{zone}/{attribute}", s.handleSetZoneAttribute)
+	s.mux.HandleFunc("GET /api/health", s.handleHealth)
+	s.mux.HandleFunc("GET /api/health/events", s.handleHealthEvents)
+
+	// Legacy routes (without /api prefix) for backward compatibility
 	s.mux.HandleFunc("GET /zones", s.handleGetZones)
 	s.mux.HandleFunc("GET /zones/{zone}", s.handleGetZone)
 	s.mux.HandleFunc("GET /zones/{zone}/{attribute}", s.handleGetZoneAttribute)
 	s.mux.HandleFunc("POST /zones/{zone}/{attribute}", s.handleSetZoneAttribute)
 	s.mux.HandleFunc("GET /health", s.handleHealth)
 	s.mux.HandleFunc("GET /health/events", s.handleHealthEvents)
+
+	// Web UI: serve embedded static files, fallback to index.html for SPA routing
+	if s.webFS != nil {
+		s.mux.Handle("GET /", s.spaHandler())
+	}
+}
+
+// spaHandler serves static files from the embedded FS, falling back to
+// index.html for client-side routing (React Router, etc.).
+func (s *Server) spaHandler() http.Handler {
+	fileServer := http.FileServer(http.FS(s.webFS))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Try to serve the file directly
+		path := r.URL.Path
+		if path == "/" {
+			path = "index.html"
+		} else {
+			path = strings.TrimPrefix(path, "/")
+		}
+
+		// Check if file exists in the embedded FS
+		if _, err := fs.Stat(s.webFS, path); err == nil {
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+
+		// File not found -- serve index.html for SPA client-side routing
+		indexFile, err := fs.ReadFile(s.webFS, "index.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write(indexFile)
+	})
 }
 
 func (s *Server) handleGetZones(w http.ResponseWriter, r *http.Request) {

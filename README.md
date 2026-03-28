@@ -14,16 +14,36 @@ Successor to [jnewland/mpr-6zhmaut-api](https://github.com/jnewland/mpr-6zhmaut-
 - **Rich health endpoints** -- `/health` exposes connection state, baud rate, cache age, queue stats, recovery history; `/health/events` shows a ring buffer of the last 100 system events
 - **Structured JSON logging** -- every component logs via `slog` for easy debugging with `journalctl`
 - **Multi-amp support** -- 1-3 daisy-chained amplifiers (6-18 zones)
-- **Single binary** -- compiles to one static binary, runs as a systemd service
+- **Embedded web UI** -- React 19 + Vite SPA built into the binary via `embed.FS`, served from the same port as the API
+- **Single binary** -- compiles to one static binary with the web UI baked in, runs as a systemd service
 
 ## Quick Start
 
 ```bash
-# Build
-go build -o mpr-api ./cmd/mpr-api/
+# Build everything (web UI + Go binary)
+make build
 
-# Run (defaults: /dev/ttyUSB0, 115200 baud, port 8181, 1 amp)
+# Or build for Raspberry Pi 3B
+make build-pi
+
+# Deploy to Pi (set PI_HOST)
+PI_HOST=mpr make deploy
+
+# Run locally (defaults: /dev/ttyUSB0, 115200 baud, port 8181, 1 amp)
 AMPCOUNT=2 ./mpr-api
+```
+
+### Manual Build
+
+```bash
+# Build web UI
+cd web && npm install && npm run build && cd ..
+
+# Copy build output for embedding
+cp -r web/dist cmd/mpr-api/dist
+
+# Build Go binary
+go build -o mpr-api ./cmd/mpr-api/
 
 # Cross-compile for Raspberry Pi
 GOOS=linux GOARCH=arm GOARM=7 go build -o mpr-api ./cmd/mpr-api/    # Pi 3/4 (32-bit)
@@ -32,16 +52,18 @@ GOOS=linux GOARCH=arm64 go build -o mpr-api ./cmd/mpr-api/           # Pi 4/5 (6
 
 ## API
 
-All GET endpoints accept `?live=true` to bypass the cache and query the amp directly.
+All endpoints are available at both `/api/...` (for the web/iOS clients) and `/...` (legacy, backward compatible). All GET endpoints accept `?live=true` to bypass the cache and query the amp directly.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/zones` | All zones (from cache) |
-| `GET` | `/zones/:zone` | Single zone status |
-| `GET` | `/zones/:zone/:attribute` | Single attribute value (plain text) |
-| `POST` | `/zones/:zone/:attribute` | Set attribute (body = value), returns updated zone |
-| `GET` | `/health` | Connection state, baud rate, cache age, queue stats |
-| `GET` | `/health/events` | Last 100 system events (state changes, recoveries, errors) |
+| `GET` | `/api/zones` | All zones (from cache) |
+| `GET` | `/api/zones/:zone` | Single zone status |
+| `GET` | `/api/zones/:zone/:attribute` | Single attribute value (plain text) |
+| `POST` | `/api/zones/:zone/:attribute` | Set attribute (body = value), returns updated zone |
+| `GET` | `/api/health` | Connection state, baud rate, cache age, queue stats |
+| `GET` | `/api/health/events` | Last 100 system events (state changes, recoveries, errors) |
+
+The web UI is served at `/` from the same port.
 
 ### Zone IDs
 
