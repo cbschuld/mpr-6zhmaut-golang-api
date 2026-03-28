@@ -1,4 +1,6 @@
-.PHONY: build build-web build-go build-pi clean test dev
+.PHONY: build build-web build-go build-pi clean test dev deploy
+
+PI_HOST ?= cbschuld@mpr
 
 # Default: build everything
 build: build-web build-go
