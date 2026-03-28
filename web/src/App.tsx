@@ -1,121 +1,84 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useState } from "react";
+import { Header } from "./components/Header";
+import { TabBar, type Tab } from "./components/TabBar";
+import { ZoneCard } from "./components/ZoneCard";
+import { Dashboard } from "./components/Dashboard";
+import { SettingsPage } from "./components/SettingsPage";
+import { useZones } from "./hooks/useZones";
+import { useHealth } from "./hooks/useHealth";
+import { useSettings } from "./hooks/useSettings";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [tab, setTab] = useState<Tab>("zones");
+  const [showSettings, setShowSettings] = useState(false);
+  const { zones, loading, error, setZoneAttribute } = useZones();
+  const health = useHealth();
+  const { settings, updateSettings, getLabel, getZonesForTag } = useSettings();
+
+  const state = health?.state_machine?.state || "CONNECTING";
+
+  if (showSettings) {
+    return (
+      <SettingsPage
+        settings={settings}
+        onUpdate={updateSettings}
+        onClose={() => setShowSettings(false)}
+      />
+    );
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="max-w-lg mx-auto min-h-screen flex flex-col">
+      <Header state={state} onSettingsClick={() => setShowSettings(true)} />
+      <TabBar active={tab} onChange={setTab} />
 
-      <div className="ticks"></div>
+      <main className="flex-1">
+        {loading && zones.length === 0 && (
+          <div className="p-8 text-center text-gray-400">Connecting to amplifier...</div>
+        )}
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+        {error && zones.length === 0 && (
+          <div className="p-8 text-center text-red-400">{error}</div>
+        )}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+        {tab === "zones" && zones.length > 0 && (
+          <div className="p-4 space-y-3">
+            {zones.map((zone) => (
+              <ZoneCard
+                key={zone.zone}
+                zone={zone}
+                label={getLabel(zone.zone)}
+                sources={settings.sources}
+                onSetAttribute={setZoneAttribute}
+              />
+            ))}
+          </div>
+        )}
+
+        {tab === "dashboard" && zones.length > 0 && (
+          <Dashboard
+            zones={zones}
+            labels={settings.labels}
+            sources={settings.sources}
+            getZonesForTag={getZonesForTag}
+            onSetAttribute={setZoneAttribute}
+          />
+        )}
+      </main>
+
+      {/* Footer status */}
+      {health && (
+        <footer className="px-4 py-2 border-t border-gray-700 text-xs text-gray-500 flex justify-between">
+          <span>
+            Amp 1-{health.amps.count}: {health.serial.current_baud_rate} baud
+          </span>
+          <span>
+            Cache: {Math.round(health.cache.cache_age_ms / 1000)}s ago
+          </span>
+        </footer>
+      )}
+    </div>
+  );
 }
 
-export default App
+export default App;
