@@ -118,7 +118,7 @@ func (p *Port) Write(data string) error {
 }
 
 // ReadLine reads a single line (up to \n) from the serial port.
-func (p *Port) ReadLine() (string, error) {
+func (p *Port) ReadLine() (line string, err error) {
 	p.mu.Lock()
 	reader := p.reader
 	p.mu.Unlock()
@@ -127,7 +127,17 @@ func (p *Port) ReadLine() (string, error) {
 		return "", fmt.Errorf("port not open")
 	}
 
-	line, err := reader.ReadString('\n')
+	// Recover from panics caused by reading a closed/stale bufio.Reader.
+	// This can happen when the port is closed during recovery while a
+	// read goroutine is still active.
+	defer func() {
+		if r := recover(); r != nil {
+			line = ""
+			err = fmt.Errorf("port read interrupted: %v", r)
+		}
+	}()
+
+	line, err = reader.ReadString('\n')
 	if err != nil && err != io.EOF {
 		return line, err
 	}
