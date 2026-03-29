@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"sync"
+	"time"
 
 	goserial "go.bug.st/serial"
 )
@@ -49,6 +50,10 @@ func (p *Port) Open(baudRate int) error {
 	if err != nil {
 		return fmt.Errorf("open serial %s at %d: %w", p.device, baudRate, err)
 	}
+
+	// Set a read timeout so ReadLine returns within 200ms even if no data
+	// arrives. This prevents zombie goroutines when commands time out.
+	port.SetReadTimeout(200 * time.Millisecond)
 
 	p.port = port
 	p.baudRate = baudRate
@@ -95,6 +100,7 @@ func (p *Port) SetBaudRate(baudRate int) error {
 		if err != nil {
 			return fmt.Errorf("reopen serial at %d: %w", baudRate, err)
 		}
+		port.SetReadTimeout(200 * time.Millisecond)
 		p.port = port
 		p.reader = bufio.NewReader(port)
 	}

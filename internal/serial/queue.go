@@ -165,57 +165,49 @@ func (q *Queue) executeCommand(ctx context.Context, cmd command) {
 	}
 
 	var result CommandResult
-	timer := time.NewTimer(cmd.timeout)
-	defer timer.Stop()
+	deadline := time.Now().Add(cmd.timeout)
 
+	// Read loop using the port's 200ms read timeout. No goroutines needed --
+	// ReadLine returns within 200ms even with no data, letting us check
+	// the deadline and context without leaving zombie readers.
 	for len(result.Zones) < cmd.expectedResponses {
-		lineCh := make(chan string, 1)
-		errCh := make(chan error, 1)
-
-		go func() {
-			line, err := q.port.ReadLine()
-			if err != nil {
-				errCh <- err
-				return
-			}
-			lineCh <- line
-		}()
-
-		select {
-		case <-timer.C:
+		if time.Now().After(deadline) {
 			q.totalTimeouts.Add(1)
 			elapsed := time.Since(start)
 			q.logger.Warn("command timeout", "cmd", sanitized, "timeout_ms", elapsed.Milliseconds())
 			cmd.errCh <- ErrTimeout
 			return
-		case err := <-errCh:
-			q.totalErrors.Add(1)
-			q.logger.Error("serial read failed", "cmd", sanitized, "error", err)
-			cmd.errCh <- fmt.Errorf("serial read: %w", err)
-			return
-		case line := <-lineCh:
-			line = strings.TrimSpace(line)
-			if line == "" {
-				continue
-			}
+		}
 
-			result.Raw = append(result.Raw, line)
-
-			if IsErrorResponse(line) {
-				q.totalErrors.Add(1)
-				q.logger.Error("command error from amp", "cmd", sanitized, "raw_response", line)
-				cmd.errCh <- ErrCmdError
-				return
-			}
-
-			if zone := ParseZoneResponse(line); zone != nil {
-				result.Zones = append(result.Zones, *zone)
-				elapsed := time.Since(start)
-				q.logger.Debug("response received", "zone", zone.Zone, "response_time_ms", elapsed.Milliseconds())
-			}
-		case <-ctx.Done():
+		if ctx.Err() != nil {
 			cmd.errCh <- ctx.Err()
 			return
+		}
+
+		line, err := q.port.ReadLine()
+		if err != nil {
+			// Read timeout (no data within 200ms) -- just loop and check deadline
+			continue
+		}
+
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		result.Raw = append(result.Raw, line)
+
+		if IsErrorResponse(line) {
+			q.totalErrors.Add(1)
+			q.logger.Error("command error from amp", "cmd", sanitized, "raw_response", line)
+			cmd.errCh <- ErrCmdError
+			return
+		}
+
+		if zone := ParseZoneResponse(line); zone != nil {
+			result.Zones = append(result.Zones, *zone)
+			elapsed := time.Since(start)
+			q.logger.Debug("response received", "zone", zone.Zone, "response_time_ms", elapsed.Milliseconds())
 		}
 	}
 
