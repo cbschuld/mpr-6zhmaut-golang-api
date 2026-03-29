@@ -1,23 +1,28 @@
 package amp
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/cbschuld/mpr-6zhmaut-golang-api/internal/model"
 )
 
+const recentSetGuardDuration = 10 * time.Second
+
 // ZoneCache is a thread-safe in-memory cache of zone states.
 type ZoneCache struct {
 	mu         sync.RWMutex
 	zones      map[string]model.Zone
 	lastUpdate time.Time
+	recentSets map[string]time.Time // keyed by "zoneId:attr"
 }
 
 // NewZoneCache creates an empty zone cache.
 func NewZoneCache() *ZoneCache {
 	return &ZoneCache{
-		zones: make(map[string]model.Zone),
+		zones:      make(map[string]model.Zone),
+		recentSets: make(map[string]time.Time),
 	}
 }
 
@@ -42,28 +47,45 @@ func (c *ZoneCache) GetAll() []model.Zone {
 
 // Update replaces the cache with fresh zone data from a poll cycle.
 // Returns a list of changes detected (for logging keypad changes).
+// Suppresses changes for attributes recently set via OptimisticSet.
 func (c *ZoneCache) Update(zones []model.Zone) []ZoneChange {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	now := time.Now()
+
+	// Clean up expired recentSets entries
+	for key, t := range c.recentSets {
+		if now.Sub(t) > recentSetGuardDuration {
+			delete(c.recentSets, key)
+		}
+	}
+
 	var changes []ZoneChange
 	for _, z := range zones {
 		if old, ok := c.zones[z.Zone]; ok {
-			changes = append(changes, diffZone(old, z)...)
+			for _, ch := range diffZone(old, z) {
+				key := fmt.Sprintf("%s:%s", ch.ZoneID, ch.Attr)
+				if _, guarded := c.recentSets[key]; !guarded {
+					changes = append(changes, ch)
+				}
+			}
 		}
 		c.zones[z.Zone] = z
 	}
-	c.lastUpdate = time.Now()
+	c.lastUpdate = now
 	return changes
 }
 
 // OptimisticSet updates a single attribute in the cache immediately.
+// Also marks the attribute as recently set to suppress false "keypad change" logs.
 func (c *ZoneCache) OptimisticSet(zoneID, attr, value string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if z, ok := c.zones[zoneID]; ok {
 		c.zones[zoneID] = z.SetAttribute(attr, value)
 	}
+	c.recentSets[fmt.Sprintf("%s:%s", zoneID, attr)] = time.Now()
 }
 
 // Age returns how long since the cache was last updated.
