@@ -171,6 +171,15 @@ func (q *Queue) executeCommand(ctx context.Context, cmd command) {
 		return
 	}
 
+	// Fire-and-forget: write the command and return immediately.
+	// Used for control commands where we don't need to wait for a response.
+	if cmd.expectedResponses == 0 {
+		// Small delay to let the amp process the command before the next one
+		time.Sleep(100 * time.Millisecond)
+		cmd.resultCh <- CommandResult{}
+		return
+	}
+
 	var result CommandResult
 	deadline := time.Now().Add(cmd.timeout)
 

@@ -153,18 +153,21 @@ func (c *Controller) QueryZone(ctx context.Context, zoneID string) (*model.Zone,
 }
 
 // SetAttribute sets a zone attribute and returns the expected new state (optimistic).
+// Control commands are fire-and-forget: we write to the serial port and return
+// immediately. The optimistic cache updates the UI, and the background poller
+// confirms the actual state within seconds.
 func (c *Controller) SetAttribute(ctx context.Context, zoneID, attr, value string) (*model.Zone, error) {
 	if !c.state.IsReady() {
 		return nil, serial.ErrRecovering
 	}
 
 	cmd := serial.ControlCommand(zoneID, attr, value)
-	_, err := c.queue.Enqueue(ctx, cmd, 1, c.cfg.CmdTimeout)
+	// expectedResponses=0: don't wait for a response from the amp
+	_, err := c.queue.Enqueue(ctx, cmd, 0, c.cfg.CmdTimeout)
 	if err != nil {
 		c.RecordCommandError(ctx, err)
 		return nil, err
 	}
-	c.RecordCommandSuccess()
 
 	// Optimistic update
 	c.cache.OptimisticSet(zoneID, attr, value)
