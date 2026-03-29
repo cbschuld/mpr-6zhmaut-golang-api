@@ -57,6 +57,12 @@ func (p *Poller) loop(ctx context.Context) {
 			if !p.state.IsReady() {
 				continue
 			}
+			// Yield to user commands -- skip this poll cycle if the queue
+			// has pending work so we don't block user interactions
+			if p.queue.PendingCount() > 0 {
+				p.logger.Debug("poll skipped, queue has pending commands")
+				continue
+			}
 			p.poll(ctx)
 		}
 	}
@@ -67,14 +73,27 @@ func (p *Poller) poll(ctx context.Context) {
 	var allZones []model.Zone
 
 	for i := 1; i <= p.ampCount; i++ {
-		pollCtx, cancel := context.WithTimeout(ctx, p.cmdTimeout)
+		// Skip if user commands appeared while we're polling
+		if p.queue.PendingCount() > 0 {
+			p.logger.Debug("poll interrupted, yielding to pending commands")
+			// Still update cache with what we have so far
+			if len(allZones) > 0 {
+				p.cache.Update(allZones)
+			}
+			return
+		}
+
+		// Use a generous timeout for poll commands -- they're low priority
+		// and we don't want them triggering recovery
+		pollCtx, cancel := context.WithTimeout(ctx, p.cmdTimeout*2)
 		cmd := serial.QueryCommand(i)
-		result, err := p.queue.Enqueue(pollCtx, cmd, 6, p.cmdTimeout)
+		result, err := p.queue.Enqueue(pollCtx, cmd, 6, p.cmdTimeout*2)
 		cancel()
 
 		if err != nil {
 			p.logger.Warn("poll failed", "amp", i, "error", err)
-			p.controller.RecordCommandError(ctx, err)
+			// Don't count poll failures toward recovery -- only user
+			// command failures should trigger recovery
 			return
 		}
 		p.controller.RecordCommandSuccess()

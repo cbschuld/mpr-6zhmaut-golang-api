@@ -136,6 +136,13 @@ func (q *Queue) GetStats() Stats {
 	}
 }
 
+// PendingCount returns the number of commands waiting in the queue.
+func (q *Queue) PendingCount() int {
+	q.pendingMu.Lock()
+	defer q.pendingMu.Unlock()
+	return q.pending
+}
+
 func (q *Queue) processLoop(ctx context.Context) {
 	defer q.wg.Done()
 
